@@ -22,6 +22,7 @@ interface BookData {
   translator?: string;
   datepublished?: string;
   language?: string;
+  isbn?: string;
   url?: string;
 }
 
@@ -112,6 +113,7 @@ pages: {{pages}}
 cover: "{{cover}}"
 publisher: "{{publisher}}"
 datepublished: "{{datepublished}}"
+isbn: "{{isbn}}"
 url: "{{url}}"
 language: "{{language}}"
 ---
@@ -128,6 +130,7 @@ language: "{{language}}"
       .replace(/{{publisher}}/g, bookData.publisher || '')
       .replace(/{{translator}}/g, bookData.translator || '')
       .replace(/{{datepublished}}/g, bookData.datepublished || '')
+      .replace(/{{isbn}}/g, bookData.isbn || '')
       .replace(/{{url}}/g, bookData.url || '')
       .replace(/{{language}}/g, bookData.language || '');
     
@@ -362,6 +365,7 @@ language: "{{language}}"
             publisher: publisher,
             translator: '',
             datepublished: datepublished,
+            isbn: jsonLd.isbn || '',
             language: jsonLd.inLanguage || '',
             url: canonicalUrl
           };

@@ -113,7 +113,7 @@ pages: {{pages}}
 cover: "{{cover}}"
 publisher: "{{publisher}}"
 datepublished: "{{datepublished}}"
-isbn: "{{isbn}}"
+ISBN: "{{ISBN}}"
 url: "{{url}}"
 language: "{{language}}"
 ---
@@ -130,7 +130,7 @@ language: "{{language}}"
       .replace(/{{publisher}}/g, bookData.publisher || '')
       .replace(/{{translator}}/g, bookData.translator || '')
       .replace(/{{datepublished}}/g, bookData.datepublished || '')
-      .replace(/{{isbn}}/g, bookData.isbn || '')
+      .replace(/{{ISBN}}/g, bookData.isbn || '')
       .replace(/{{url}}/g, bookData.url || '')
       .replace(/{{language}}/g, bookData.language || '');
     

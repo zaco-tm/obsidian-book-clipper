@@ -25,6 +25,7 @@
 - {{cover}}
 - {{publisher}}
 - {{datepublished}}
+- {{isbn}}
 - {{url}}
 - {{language}}
 

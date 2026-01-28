@@ -429,6 +429,8 @@ language: "{{language}}"
         const datepublished: string = datePublishedElement?.textContent?.trim() || '';
         const languageElement = doc.querySelector('#rpi-attribute-language .rpi-attribute-value span');
         const language: string = languageElement?.textContent?.trim() || '';
+        const isbnElement = doc.querySelector('#rpi-attribute-book_details-isbn13 .rpi-attribute-value span');
+        const isbn: string = isbnElement?.textContent?.trim() || '';
         const canonicalLink = doc.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
         const canonicalUrl = canonicalLink?.getAttribute('href')?.trim() || url;
         
@@ -441,6 +443,7 @@ language: "{{language}}"
           translator: translator,
           datepublished: datepublished,
           language: language,
+          isbn: isbn,
           url: canonicalUrl
         };
       }

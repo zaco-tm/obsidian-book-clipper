@@ -27,7 +27,7 @@ This plugin imports book information from these websites into Obsidian:
 - {{cover}}
 - {{publisher}}
 - {{datepublished}}
-- {{isbn}}
+- {{ISBN}}
 - {{url}}
 - {{language}}
 

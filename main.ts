@@ -287,6 +287,7 @@ summary: "{{summary}}"
       }
 
       const apiUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=1`;
+      new Notice(`Searching: ${query}`, 2000);
 
       const response = await requestUrl({
         url: apiUrl,
@@ -294,18 +295,23 @@ summary: "{{summary}}"
         headers: { 'User-Agent': 'Mozilla/5.0' }
       });
 
+      new Notice(`API Status: ${response.status}`, 2000);
+      
       if (response.status === 200) {
         const data = response.json;
         if (data.items && data.items.length > 0) {
           const volumeInfo = data.items[0].volumeInfo || {};
+          new Notice(`Found: ${volumeInfo.title || 'Unknown'}`, 2000);
           
           // Try multiple description fields
           const description = volumeInfo.description || volumeInfo.summary || volumeInfo.textSnippet || '';
           if (description) {
             // Strip HTML tags
             const cleanDesc = description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-            // Return first 500 chars
+            new Notice('Summary fetched successfully', 2000);
             return cleanDesc.substring(0, 500).trim();
+          } else {
+            new Notice('No description field in Google Books data', 3000);
           }
         } else {
           new Notice('No Google Books results found', 3000);

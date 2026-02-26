@@ -316,29 +316,29 @@ description: "{{description}}"
         if (jsonLd) {
           const authors = jsonLd.author || [];
           const author = this.concatenateAuthors(authors);
-          
+
           let publisher = '';
           let datepublished = '';
           const nextData = this.extractNextData(html);
-          
+
           if (nextData) {
             const findBookDetails = (obj: any, visited: Set<any> = new Set()): any => {
-              if (!obj || typeof obj !== 'object' || visited.has(obj) || 
+              if (!obj || typeof obj !== 'object' || visited.has(obj) ||
                   obj instanceof Date || obj instanceof RegExp || typeof obj === 'function') {
                 return null;
               }
               visited.add(obj);
-              
-              const isBookDetails = obj.__typename === 'BookDetails' || 
-                (obj.publisher !== undefined && obj.publicationTime !== undefined && 
+
+              const isBookDetails = obj.__typename === 'BookDetails' ||
+                (obj.publisher !== undefined && obj.publicationTime !== undefined &&
                  (obj.format !== undefined || obj.numPages !== undefined || obj.asin !== undefined));
-              
+
               if (isBookDetails) return obj;
               if (obj.details && typeof obj.details === 'object') {
                 const detailsResult = findBookDetails(obj.details, visited);
                 if (detailsResult) return detailsResult;
               }
-              
+
               const items = Array.isArray(obj) ? obj : Object.values(obj);
               for (const item of items) {
                 const result = findBookDetails(item, visited);
@@ -346,12 +346,12 @@ description: "{{description}}"
               }
               return null;
             };
-            
+
             const details = findBookDetails(nextData?.props?.pageProps?.apolloState) ||
                           findBookDetails(nextData?.props?.pageProps) ||
                           findBookDetails(nextData?.props) ||
                           findBookDetails(nextData);
-            
+
             if (details) {
               publisher = details.publisher ? String(details.publisher).trim() : '';
               datepublished = details.publicationTime ? this.formatDateFromTimestamp(details.publicationTime) : '';
@@ -360,6 +360,21 @@ description: "{{description}}"
 
           const canonicalLink = doc.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
           const canonicalUrl = canonicalLink?.getAttribute('href')?.trim() || url;
+
+          // Extract description from JSON-LD or fallback to HTML element
+          let description = '';
+          if (jsonLd.description) {
+            description = typeof jsonLd.description === 'string' 
+              ? jsonLd.description 
+              : '';
+          }
+          // Fallback: try to extract from Goodreads description element
+          if (!description) {
+            const descriptionDiv = doc.querySelector('div[data-automation-id="bookDescription"], div.ReadMoreContent, div.truncatedText');
+            if (descriptionDiv) {
+              description = descriptionDiv.textContent?.trim() || '';
+            }
+          }
 
           return {
             title: jsonLd.name || '',
@@ -372,7 +387,7 @@ description: "{{description}}"
             isbn: jsonLd.isbn || '',
             language: jsonLd.inLanguage || '',
             url: canonicalUrl,
-            description: jsonLd.description || ''
+            description: description
           };
         }
 

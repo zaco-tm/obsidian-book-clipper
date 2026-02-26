@@ -271,8 +271,6 @@ summary: "{{summary}}"
 
   // Fetch book summary from Open Library API (primary) then Google Books (fallback)
   async fetchSummary(title: string, author: string, isbn?: string): Promise<string> {
-    new Notice(`Summary: Searching "${title.substring(0, 30)}..."`, 4000);
-    
     // Try Open Library API first (no rate limits)
     try {
       let searchUrl = '';
@@ -324,20 +322,15 @@ summary: "{{summary}}"
         if (description) {
           const cleanDesc = description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
           if (cleanDesc.length > 20) {
-            new Notice('Summary found (Open Library)', 3000);
             return cleanDesc.substring(0, 500).trim();
           }
         }
-        new Notice('Open Library: No description found', 3000);
-      } else {
-        new Notice(`Open Library error: ${response.status}`, 3000);
       }
     } catch (error) {
-      new Notice(`Open Library: ${(error as Error).message}`, 3000);
+      // Continue to Google Books fallback
     }
 
     // Fallback to Google Books API
-    new Notice('Trying Google Books...', 3000);
     try {
       let query = '';
       if (isbn && isbn.length > 5) {
@@ -363,18 +356,12 @@ summary: "{{summary}}"
           const description = volumeInfo.description || volumeInfo.summary || volumeInfo.textSnippet || '';
           if (description) {
             const cleanDesc = description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-            new Notice('Summary found (Google Books)', 3000);
             return cleanDesc.substring(0, 500).trim();
           }
         }
-        new Notice('Google Books: No description found', 3000);
-      } else if (response.status === 429) {
-        new Notice('Google Books rate limited', 3000);
-      } else {
-        new Notice(`Google Books error: ${response.status}`, 3000);
       }
     } catch (error) {
-      new Notice(`Google Books: ${(error as Error).message}`, 3000);
+      // Return empty if both APIs fail
     }
 
     return '';

@@ -155,7 +155,14 @@ summary: "{{summary}}"
     }
     
     // Create unique filename
-    const cleanTitle: string = bookData.title.replace(/[\\/:*?"<>|]/g, "");
+    // Decode HTML entities first, then remove invalid filename characters
+    const cleanTitle: string = bookData.title
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/[\\/:*?"<>|]/g, "");
     const uniqueFilename: string = this.getUniqueFilename(cleanTitle, this.settings.saveFolder);
     
     // Create new file

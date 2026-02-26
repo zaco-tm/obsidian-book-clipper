@@ -24,6 +24,7 @@ interface BookData {
   language?: string;
   isbn?: string;
   url?: string;
+  description?: string;
 }
 
 export default class AddBookPlugin extends Plugin {
@@ -116,6 +117,7 @@ datepublished: "{{datepublished}}"
 ISBN: "{{ISBN}}"
 url: "{{url}}"
 language: "{{language}}"
+description: "{{description}}"
 ---
 
 `;
@@ -132,7 +134,8 @@ language: "{{language}}"
       .replace(/{{datepublished}}/g, bookData.datepublished || '')
       .replace(/{{ISBN}}/g, bookData.isbn || '')
       .replace(/{{url}}/g, bookData.url || '')
-      .replace(/{{language}}/g, bookData.language || '');
+      .replace(/{{language}}/g, bookData.language || '')
+      .replace(/{{description}}/g, bookData.description || '');
     
     // Validate save folder path if specified
     if (this.settings.saveFolder && !this.isRootFolder(this.settings.saveFolder)) {
@@ -265,7 +268,7 @@ language: "{{language}}"
 
           const canonicalLink = doc.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
           const canonicalUrl = canonicalLink?.getAttribute('href')?.trim() || url;
-          
+
           return {
             title: jsonLd.name || '',
             author: author,
@@ -275,7 +278,8 @@ language: "{{language}}"
             translator: translator || '',
             datepublished: workExample.datePublished || '',
             language: workExample.inLanguage || '',
-            url: canonicalUrl
+            url: canonicalUrl,
+            description: jsonLd.description || ''
           };
         }
         return null;
@@ -356,7 +360,7 @@ language: "{{language}}"
 
           const canonicalLink = doc.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
           const canonicalUrl = canonicalLink?.getAttribute('href')?.trim() || url;
-          
+
           return {
             title: jsonLd.name || '',
             author: author,
@@ -367,10 +371,11 @@ language: "{{language}}"
             datepublished: datepublished,
             isbn: jsonLd.isbn || '',
             language: jsonLd.inLanguage || '',
-            url: canonicalUrl
+            url: canonicalUrl,
+            description: jsonLd.description || ''
           };
         }
-        
+
         return null;
       } else if (source === 'amazon') {
         const title: string = doc.querySelector('span#productTitle')?.textContent?.trim() || '';
@@ -433,7 +438,9 @@ language: "{{language}}"
         const isbn: string = isbnElement?.textContent?.trim() || '';
         const canonicalLink = doc.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
         const canonicalUrl = canonicalLink?.getAttribute('href')?.trim() || url;
-        
+        const descriptionElement = doc.querySelector('#bookDescriptionFeature .a-expander-content, #bookDescription .a-expander-content');
+        const description: string = descriptionElement?.textContent?.trim() || '';
+
         return {
           title: title || '',
           author: author,
@@ -444,7 +451,8 @@ language: "{{language}}"
           datepublished: datepublished,
           language: language,
           isbn: isbn,
-          url: canonicalUrl
+          url: canonicalUrl,
+          description: description
         };
       }
 

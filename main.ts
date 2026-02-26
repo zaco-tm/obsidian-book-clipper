@@ -163,7 +163,7 @@ summary: "{{summary}}"
       .replace(/&quot;/g, '"')
       .replace(/&#39;/g, "'")
       .replace(/[\\/*?"<>|]/g, '')  // Remove invalid filename chars (except :)
-      .replace(/:/g, '-')  // Replace : with -
+      .replace(/:/g, ' -')  // Replace : with space-dash
       .replace(/\s+/g, ' ')  // Normalize multiple spaces
       .trim();
     const uniqueFilename: string = this.getUniqueFilename(cleanTitle, this.settings.saveFolder);

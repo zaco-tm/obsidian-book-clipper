@@ -128,20 +128,27 @@ summary: "{{summary}}"
 `;
     }
 
+    // Helper function to escape YAML string values
+    const escapeYamlString = (str: string): string => {
+      if (!str) return '';
+      // Escape double quotes and backslashes for YAML double-quoted strings
+      return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ').replace(/\r/g, ' ');
+    };
+
     // Replace placeholders in template
     let noteContent: string = templateContent
-      .replace(/{{title}}/g, bookData.title)
-      .replace(/{{author}}/g, bookData.author)
+      .replace(/{{title}}/g, escapeYamlString(bookData.title))
+      .replace(/{{author}}/g, escapeYamlString(bookData.author))
       .replace(/{{pages}}/g, bookData.pages)
-      .replace(/{{cover}}/g, bookData.cover)
-      .replace(/{{publisher}}/g, bookData.publisher || '')
-      .replace(/{{translator}}/g, bookData.translator || '')
-      .replace(/{{datepublished}}/g, bookData.datepublished || '')
-      .replace(/{{ISBN}}/g, bookData.isbn || '')
-      .replace(/{{url}}/g, bookData.url || '')
-      .replace(/{{language}}/g, bookData.language || '')
-      .replace(/{{description}}/g, bookData.description || '')
-      .replace(/{{summary}}/g, bookData.summary || '');
+      .replace(/{{cover}}/g, escapeYamlString(bookData.cover))
+      .replace(/{{publisher}}/g, escapeYamlString(bookData.publisher || ''))
+      .replace(/{{translator}}/g, escapeYamlString(bookData.translator || ''))
+      .replace(/{{datepublished}}/g, escapeYamlString(bookData.datepublished || ''))
+      .replace(/{{ISBN}}/g, escapeYamlString(bookData.isbn || ''))
+      .replace(/{{url}}/g, escapeYamlString(bookData.url || ''))
+      .replace(/{{language}}/g, escapeYamlString(bookData.language || ''))
+      .replace(/{{description}}/g, escapeYamlString(bookData.description || ''))
+      .replace(/{{summary}}/g, escapeYamlString(bookData.summary || ''));
     
     // Validate save folder path if specified
     if (this.settings.saveFolder && !this.isRootFolder(this.settings.saveFolder)) {
@@ -281,15 +288,40 @@ summary: "{{summary}}"
 
   // Fetch book summary from Open Library API (primary) then Google Books (fallback)
   async fetchSummary(title: string, author: string, isbn?: string): Promise<string> {
-    // Try Open Library API first (no rate limits)
-    try {
-      let searchUrl = '';
-      if (isbn && isbn.length > 5) {
-        searchUrl = `https://openlibrary.org/isbn/${isbn}.json`;
-      } else {
-        const cleanTitle = title.replace(/[:–—-].*$/, '').trim();
-        searchUrl = `https://openlibrary.org/search.json?title=${encodeURIComponent(cleanTitle)}&author=${encodeURIComponent(author.split(',')[0].trim())}&limit=1`;
+    // Try Open Library API first with ISBN (most reliable)
+    if (isbn && isbn.length > 5) {
+      try {
+        const searchUrl = `https://openlibrary.org/isbn/${isbn}.json`;
+        const response = await requestUrl({
+          url: searchUrl,
+          method: 'GET',
+          headers: { 'User-Agent': 'Mozilla/5.0' }
+        });
+
+        if (response.status === 200 && response.json) {
+          const data = response.json;
+          let description = '';
+          
+          if (data.description) {
+            description = typeof data.description === 'string' ? data.description : data.description.value || '';
+          }
+          
+          if (description) {
+            const cleanDesc = description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+            if (cleanDesc.length > 20) {
+              return cleanDesc.substring(0, 500).trim();
+            }
+          }
+        }
+      } catch (error) {
+        // Continue to search-based lookup
       }
+    }
+
+    // Try Open Library search by title
+    try {
+      const cleanTitle = title.replace(/[:–—-].*$/, '').trim();
+      const searchUrl = `https://openlibrary.org/search.json?title=${encodeURIComponent(cleanTitle)}&author=${encodeURIComponent(author.split(',')[0].trim())}&limit=3`;
 
       const response = await requestUrl({
         url: searchUrl,
@@ -299,40 +331,36 @@ summary: "{{summary}}"
 
       if (response.status === 200 && response.json) {
         const data = response.json;
-        let description = '';
-        
-        if (data.description) {
-          // Direct ISBN lookup returns description directly
-          description = typeof data.description === 'string' ? data.description : data.description.value || '';
-        } else if (data.docs && data.docs.length > 0) {
-          // Search API - need to fetch full work details
-          const doc = data.docs[0];
-          description = doc.first_sentence || doc.description || '';
-          if (Array.isArray(description)) description = description[0] || '';
-          
-          // If no description in search result, fetch full work details
-          if (!description && doc.key) {
-            const workUrl = `https://openlibrary.org${doc.key}.json`;
-            try {
-              const workResponse = await requestUrl({
-                url: workUrl,
-                method: 'GET',
-                headers: { 'User-Agent': 'Mozilla/5.0' }
-              });
-              if (workResponse.status === 200 && workResponse.json) {
-                const workData = workResponse.json;
-                description = workData.description?.value || workData.description || '';
+        if (data.docs && data.docs.length > 0) {
+          // Try to find the best matching book from results
+          for (const doc of data.docs.slice(0, 3)) {
+            let description = doc.first_sentence || doc.description || '';
+            if (Array.isArray(description)) description = description[0] || '';
+            
+            // If no description in search result, fetch full work details
+            if (!description && doc.key) {
+              try {
+                const workUrl = `https://openlibrary.org${doc.key}.json`;
+                const workResponse = await requestUrl({
+                  url: workUrl,
+                  method: 'GET',
+                  headers: { 'User-Agent': 'Mozilla/5.0' }
+                });
+                if (workResponse.status === 200 && workResponse.json) {
+                  const workData = workResponse.json;
+                  description = workData.description?.value || workData.description || '';
+                }
+              } catch (e) {
+                // Ignore work fetch errors
               }
-            } catch (e) {
-              // Ignore work fetch errors
             }
-          }
-        }
-        
-        if (description) {
-          const cleanDesc = description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-          if (cleanDesc.length > 20) {
-            return cleanDesc.substring(0, 500).trim();
+            
+            if (description) {
+              const cleanDesc = description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+              if (cleanDesc.length > 20) {
+                return cleanDesc.substring(0, 500).trim();
+              }
+            }
           }
         }
       }
@@ -351,7 +379,7 @@ summary: "{{summary}}"
         query = `${cleanTitle} ${cleanAuthor}`;
       }
 
-      const apiUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=1`;
+      const apiUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=5`;
 
       const response = await requestUrl({
         url: apiUrl,
@@ -362,11 +390,16 @@ summary: "{{summary}}"
       if (response.status === 200) {
         const data = response.json;
         if (data.items && data.items.length > 0) {
-          const volumeInfo = data.items[0].volumeInfo || {};
-          const description = volumeInfo.description || volumeInfo.summary || volumeInfo.textSnippet || '';
-          if (description) {
-            const cleanDesc = description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-            return cleanDesc.substring(0, 500).trim();
+          // Try multiple items to find best description
+          for (const item of data.items.slice(0, 3)) {
+            const volumeInfo = item.volumeInfo || {};
+            const description = volumeInfo.description || volumeInfo.summary || volumeInfo.textSnippet || '';
+            if (description) {
+              const cleanDesc = description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+              if (cleanDesc.length > 20) {
+                return cleanDesc.substring(0, 500).trim();
+              }
+            }
           }
         }
       }
@@ -588,6 +621,11 @@ summary: "{{summary}}"
                 if (description) break;
               }
             }
+          }
+
+          // Clean up description - normalize whitespace and remove extra spaces
+          if (description) {
+            description = description.replace(/\s+/g, ' ').trim();
           }
 
           return {

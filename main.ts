@@ -399,14 +399,15 @@ description: "{{description}}"
           if (!description) {
             // Try multiple selectors for description
             const descriptionSelectors = [
+              '[data-testid="description"]',
+              '.BookPageMetadataSection__description',
               'div[data-automation-id="bookDescription"]',
               'div#bookDescription',
               'div.read-more-content',
               'div.truncatedText',
               'div#descriptionContainer',
               'div.descriptionContainer',
-              'div.BookPageDescriptionSection',
-              'div[data-testid="bookDescription"]'
+              'div.BookPageDescriptionSection'
             ];
             for (const selector of descriptionSelectors) {
               const descriptionEl = doc.querySelector(selector);

@@ -496,13 +496,11 @@ description: "{{description}}"
         // Try to extract JSON-LD data first for more reliable data
         const jsonLd = this.extractJsonLd(html);
         let jsonLdTitle = '';
-        let jsonLdDescription = '';
-        
+
         if (jsonLd) {
           jsonLdTitle = jsonLd.name || '';
-          jsonLdDescription = jsonLd.description || '';
         }
-        
+
         // Extract title with multiple fallback selectors
         let title = '';
         const titleSelectors = [
@@ -563,7 +561,7 @@ description: "{{description}}"
           author = authorElement?.textContent?.trim() || '';
         }
         const translator: string = translators.length > 0 ? translators.join(', ') : '';
-        
+
         // Extract pages with multiple fallback selectors
         let pages = '';
         const pagesElements = doc.querySelectorAll('#detailBullets_feature_div li span.a-size-base, .rpi-attribute-value span, #booksProductDetails_feature_div li span.a-size-base');
@@ -586,7 +584,7 @@ description: "{{description}}"
             if (pageMatch) pages = pageMatch[0];
           }
         }
-        
+
         const coverElement = doc.querySelector('img#landingImage');
         let cover: string = "";
         if (coverElement) {
@@ -596,7 +594,7 @@ description: "{{description}}"
             cover = highResImage;
           }
         }
-        
+
         // Extract publisher with fallback selectors
         let publisher = '';
         const publisherElements = doc.querySelectorAll('#detailBullets_feature_div li, #booksProductDetails_feature_div li, .rpi-attribute-value span');
@@ -614,7 +612,7 @@ description: "{{description}}"
           const pubEl = doc.querySelector('[data-attribute="publisher"]');
           publisher = pubEl?.textContent?.trim() || '';
         }
-        
+
         // Extract date published with fallback selectors
         let datepublished = '';
         const dateElements = doc.querySelectorAll('#detailBullets_feature_div li, #booksProductDetails_feature_div li, .rpi-attribute-value span');
@@ -632,79 +630,18 @@ description: "{{description}}"
           const dateEl = doc.querySelector('[data-attribute="publication_date"]');
           datepublished = dateEl?.textContent?.trim() || '';
         }
-        
+
         const languageElement = doc.querySelector('#rpi-attribute-language .rpi-attribute-value span, [data-attribute="language"]');
         const language: string = languageElement?.textContent?.trim() || '';
-        
+
         const isbnElement = doc.querySelector('#rpi-attribute-book_details-isbn13 .rpi-attribute-value span, [data-attribute="isbn_13"]');
         const isbn: string = isbnElement?.textContent?.trim() || '';
         const canonicalLink = doc.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
         const canonicalUrl = canonicalLink?.getAttribute('href')?.trim() || url;
-        
-        // Extract description with multiple fallback selectors
-        let description = '';
-        const descriptionSelectors = [
-          '#bookDescriptionFeature .a-expander-content',
-          '#bookDescription .a-expander-content',
-          '#productDescription .a-expander-content',
-          '#descriptionWrapper',
-          '#instantAccess',
-          '.book-description',
-          '.a-expander .a-expander-content',
-          '[data-csa-c-content-id="book_description"]',
-          '#bookDescription_feature_div .a-size-base',
-          '#productDescription_feature_div .a-size-base'
-        ];
-        for (const selector of descriptionSelectors) {
-          const descEl = doc.querySelector(selector);
-          if (descEl) {
-            description = descEl.textContent?.trim().replace(/\s+/g, ' ') || '';
-            if (description && description.length > 20) break;
-          }
-        }
-        // Fallback to JSON-LD description if no HTML description found
-        if (!description && jsonLdDescription) {
-          description = jsonLdDescription;
-        }
-        // Last resort: try to extract from ASIN-based description URL
-        if (!description || description.length < 20) {
-          const asinMatch = url.match(/(?:dp|asin|gp\/product)\/([A-Z0-9]{10})/i);
-          if (asinMatch) {
-            const asin = asinMatch[1];
-            try {
-              // Try mobile Amazon which sometimes has simpler HTML
-              const mobileUrl = `https://www.amazon.com/dp/${asin}`;
-              const mobileResponse = await requestUrl({
-                url: mobileUrl,
-                method: 'GET',
-                headers: { 
-                  'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36'
-                }
-              });
-              const mobileHtml: string = mobileResponse.text;
-              const mobileDoc: Document = new DOMParser().parseFromString(mobileHtml, 'text/html');
-              
-              const mobileSelectors = [
-                '#bookDescription_feature_div',
-                '#productDescription_feature_div',
-                '[data-asin] .a-expander-content',
-                '.a-size-base'
-              ];
-              for (const selector of mobileSelectors) {
-                const descEl = mobileDoc.querySelector(selector);
-                if (descEl) {
-                  const descText = descEl.textContent?.trim().replace(/\s+/g, ' ') || '';
-                  if (descText && descText.length > 20 && !descText.toLowerCase().includes('customer reviews')) {
-                    description = descText;
-                    break;
-                  }
-                }
-              }
-            } catch (e) {
-              // Ignore errors in fallback
-            }
-          }
-        }
+
+        // Note: Amazon loads descriptions dynamically via JavaScript, so we cannot reliably extract them
+        // Users should use Goodreads links for description fetching
+        const description = '';
 
         return {
           title: title || '',

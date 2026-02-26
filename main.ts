@@ -92,10 +92,10 @@ export default class AddBookPlugin extends Plugin {
       return;
     }
 
-    // Fetch summary from Four Minute Books if no description
+    // Fetch summary from Google Books API if no description
     if (!bookData.description || bookData.description.length < 50) {
-      new Notice('Fetching summary from Four Minute Books...', 3000);
-      bookData.summary = await this.fetchSummary(bookData.title, bookData.author);
+      new Notice('Fetching summary from Google Books...', 3000);
+      bookData.summary = await this.fetchSummary(bookData.title, bookData.author, bookData.isbn);
     }
 
     // Read template (use default if not specified)
@@ -272,50 +272,42 @@ summary: "{{summary}}"
     return `${year}-${month}-${day}`;
   }
 
-  // Fetch book summary from Four Minute Books
-  async fetchSummary(title: string, author: string): Promise<string> {
+  // Fetch book summary from Google Books API
+  async fetchSummary(title: string, author: string, isbn?: string): Promise<string> {
     try {
-      // Generate potential URLs from title
-      const titleSlugs = this.generateTitleSlugs(title);
+      // Build search query
+      let query = '';
+      if (isbn && isbn.length > 5) {
+        query = `isbn:${isbn}`;
+      } else {
+        // Use title and author
+        const cleanTitle = title.replace(/[:–—-].*$/, '').trim(); // Remove subtitle
+        const cleanAuthor = author.split(',')[0].trim(); // Get first author
+        query = `intitle:${encodeURIComponent(cleanTitle)}+inauthor:${encodeURIComponent(cleanAuthor)}`;
+      }
       
-      for (const slug of titleSlugs) {
-        const summaryUrl = `https://fourminutebooks.com/${slug}-summary/`;
-        try {
-          const response = await requestUrl({
-            url: summaryUrl,
-            method: 'GET',
-            headers: { 'User-Agent': 'Mozilla/5.0' }
-          });
+      const apiUrl = `https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=1`;
+      
+      const response = await requestUrl({
+        url: apiUrl,
+        method: 'GET',
+        headers: { 'User-Agent': 'Mozilla/5.0' }
+      });
+      
+      if (response.status === 200 && response.json) {
+        const data = response.json;
+        if (data.items && data.items.length > 0) {
+          const volumeInfo = data.items[0].volumeInfo;
           
-          if (response.status === 200) {
-            const html: string = response.text;
-            const doc: Document = new DOMParser().parseFromString(html, 'text/html');
-            
-            // Extract summary content
-            const summaryContent = doc.querySelector('.entry-content, .post-content, article');
-            if (summaryContent) {
-              // Get the first few paragraphs as the summary
-              const paragraphs = summaryContent.querySelectorAll('p');
-              const summaryTexts: string[] = [];
-              let charCount = 0;
-              
-              for (const p of Array.from(paragraphs)) {
-                const text = p.textContent?.trim() || '';
-                if (text && charCount < 500) {
-                  summaryTexts.push(text);
-                  charCount += text.length;
-                }
-                if (charCount >= 500 || summaryTexts.length >= 3) break;
-              }
-              
-              if (summaryTexts.length > 0) {
-                return summaryTexts.join('\n\n');
-              }
-            }
+          // Get description, clean it up (remove HTML tags)
+          const description = volumeInfo.description || '';
+          if (description) {
+            // Strip HTML tags
+            const cleanDesc = description.replace(/<[^>]*>/g, '').trim();
+            // Get first 500 chars or first paragraph
+            const firstParagraph = cleanDesc.split('\n\n')[0] || cleanDesc.substring(0, 500);
+            return firstParagraph.substring(0, 500).trim();
           }
-        } catch (e) {
-          // Try next URL variation
-          continue;
         }
       }
       
@@ -323,46 +315,6 @@ summary: "{{summary}}"
     } catch (error) {
       return '';
     }
-  }
-
-  // Generate potential URL slugs from book title
-  private generateTitleSlugs(title: string): string[] {
-    const slugs: string[] = [];
-    
-    // Normalize title: lowercase, remove special chars
-    const normalize = (str: string) => str
-      .toLowerCase()
-      .replace(/[^\w\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/^-+|-+$/g, '');
-    
-    // Remove common subtitles and series info
-    const cleanTitle = title
-      .replace(/\s*\([^)]*\)/g, '')  // Remove parenthetical content
-      .replace(/\s*:\s*.*$/g, '')     // Remove subtitle after colon
-      .replace(/\s*-+\s*.*$/g, '')    // Remove subtitle after dash
-      .trim();
-    
-    // Add normalized clean title
-    slugs.push(normalize(cleanTitle));
-    
-    // Add original title normalized
-    slugs.push(normalize(title));
-    
-    // Try without "The" prefix
-    if (cleanTitle.toLowerCase().startsWith('the ')) {
-      slugs.push(normalize(cleanTitle.substring(4)));
-    }
-    
-    // Try without "A" or "An" prefix
-    if (cleanTitle.toLowerCase().startsWith('a ')) {
-      slugs.push(normalize(cleanTitle.substring(2)));
-    }
-    if (cleanTitle.toLowerCase().startsWith('an ')) {
-      slugs.push(normalize(cleanTitle.substring(3)));
-    }
-    
-    return [...new Set(slugs)]; // Remove duplicates
   }
 
   // Fetch book data function (with requestUrl)

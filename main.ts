@@ -191,14 +191,23 @@ description: "{{description}}"
     try {
       const doc: Document = new DOMParser().parseFromString(html, 'text/html');
       const jsonLdScripts = doc.querySelectorAll('script[type="application/ld+json"]');
-      
+
       for (const script of Array.from(jsonLdScripts)) {
         try {
           const jsonData = JSON.parse(script.textContent || '');
-          if (jsonData['@type'] === 'Book' || 
-              (Array.isArray(jsonData['@type']) && 
+          // Check for Book type
+          if (jsonData['@type'] === 'Book' ||
+              (Array.isArray(jsonData['@type']) &&
                (jsonData['@type'].includes('Book') || jsonData['@type'].includes('Product')))) {
             return jsonData;
+          }
+          // Check for nested book data (Amazon sometimes has multiple items)
+          if (jsonData['@graph'] && Array.isArray(jsonData['@graph'])) {
+            for (const item of jsonData['@graph']) {
+              if (item['@type'] === 'Book' || item['@type'] === 'Product') {
+                return item;
+              }
+            }
           }
         } catch (e) {
           continue;
@@ -515,6 +524,12 @@ description: "{{description}}"
         if (!title && jsonLdTitle) {
           title = jsonLdTitle;
         }
+        // Clean up title - remove parenthetical category suffixes like "(Bird Books, Books for Bird Lovers)"
+        if (title) {
+          title = title.replace(/\s*\([^)]*(?:Bird Books|Books for|Humor Books|Gift Books|Children's Books|Teen & Young Adult|Education & Reference)[^)]*\)\s*/i, '').trim();
+          // Also remove any trailing parenthetical content that looks like categories
+          title = title.replace(/\s*\([^)]{30,}\)\s*$/i, '').trim();
+        }
 
         const bylineInfo = doc.querySelector('div#bylineInfo');
         const authors: string[] = [];
@@ -630,19 +645,21 @@ description: "{{description}}"
         let description = '';
         const descriptionSelectors = [
           '#bookDescriptionFeature .a-expander-content',
-          '#bookDescription .a-expander-content',
+          '#bookDescription .a-expander-content', 
           '#productDescription .a-expander-content',
           '#descriptionWrapper',
           '#instantAccess',
           '.book-description',
           '.a-expander .a-expander-content',
-          '[data-csa-c-content-id="book_description"]'
+          '[data-csa-c-content-id="book_description"]',
+          '#bookDescription_feature_div .a-size-base',
+          '#productDescription_feature_div .a-size-base'
         ];
         for (const selector of descriptionSelectors) {
           const descEl = doc.querySelector(selector);
           if (descEl) {
             description = descEl.textContent?.trim().replace(/\s+/g, ' ') || '';
-            if (description) break;
+            if (description && description.length > 20) break;
           }
         }
         // Fallback to JSON-LD description if no HTML description found

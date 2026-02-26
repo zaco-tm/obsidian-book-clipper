@@ -92,8 +92,7 @@ export default class AddBookPlugin extends Plugin {
       return;
     }
 
-    // Fetch summary from Google Books API
-    new Notice('Fetching summary from Google Books...', 3000);
+    // Fetch summary from Google Books API (if not rate limited)
     bookData.summary = await this.fetchSummary(bookData.title, bookData.author, bookData.isbn);
 
     // Read template (use default if not specified)
@@ -285,7 +284,6 @@ summary: "{{summary}}"
       }
 
       const apiUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=1`;
-      new Notice(`Searching: ${query}`, 2000);
 
       const response = await requestUrl({
         url: apiUrl,
@@ -293,34 +291,28 @@ summary: "{{summary}}"
         headers: { 'User-Agent': 'Mozilla/5.0' }
       });
 
-      new Notice(`API Status: ${response.status}`, 2000);
-      
       if (response.status === 200) {
         const data = response.json;
         if (data.items && data.items.length > 0) {
           const volumeInfo = data.items[0].volumeInfo || {};
-          new Notice(`Found: ${volumeInfo.title || 'Unknown'}`, 2000);
           
           // Try multiple description fields
           const description = volumeInfo.description || volumeInfo.summary || volumeInfo.textSnippet || '';
           if (description) {
             // Strip HTML tags
             const cleanDesc = description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-            new Notice('Summary fetched successfully', 2000);
             return cleanDesc.substring(0, 500).trim();
-          } else {
-            new Notice('No description field in Google Books data', 3000);
           }
-        } else {
-          new Notice('No Google Books results found', 3000);
         }
-      } else {
-        new Notice(`Google Books API error: ${response.status}`, 3000);
+      } else if (response.status === 429) {
+        new Notice('Google Books rate limit reached - summary unavailable', 5000);
       }
 
       return '';
     } catch (error) {
-      new Notice(`Summary fetch error: ${(error as Error).message}`, 5000);
+      if ((error as any).status === 429) {
+        new Notice('Google Books rate limit reached - summary unavailable', 5000);
+      }
       return '';
     }
   }

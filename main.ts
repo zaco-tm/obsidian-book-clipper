@@ -260,7 +260,7 @@ description: "{{description}}"
           const workExample = jsonLd.workExample || jsonLd;
           const authors = jsonLd.author || [];
           const author = this.concatenateAuthors(authors);
-          
+
           let translator = '';
           if (workExample.translator && Array.isArray(workExample.translator)) {
             translator = this.concatenateAuthors(workExample.translator);
@@ -268,6 +268,25 @@ description: "{{description}}"
 
           const canonicalLink = doc.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
           const canonicalUrl = canonicalLink?.getAttribute('href')?.trim() || url;
+
+          // Extract description from JSON-LD or fallback to HTML
+          let description = jsonLd.description || '';
+          if (!description) {
+            const descriptionSelectors = [
+              '[itemprop="description"]',
+              '.book-description',
+              '.description',
+              '.book-summary',
+              '.summary-text'
+            ];
+            for (const selector of descriptionSelectors) {
+              const descEl = doc.querySelector(selector);
+              if (descEl) {
+                description = descEl.textContent?.trim() || '';
+                if (description) break;
+              }
+            }
+          }
 
           return {
             title: jsonLd.name || '',
@@ -279,7 +298,7 @@ description: "{{description}}"
             datepublished: workExample.datePublished || '',
             language: workExample.inLanguage || '',
             url: canonicalUrl,
-            description: jsonLd.description || ''
+            description: description
           };
         }
         return null;
@@ -299,7 +318,25 @@ description: "{{description}}"
         const languageRow = Array.from(doc.querySelectorAll('tr.book-vl-rows-item'))
           .find(row => row.querySelector('td.book-vl-rows-item-title')?.textContent?.includes("زبان"));
         const fidiboUrl = url;
-        
+
+        // Extract description
+        let description = '';
+        const descriptionSelectors = [
+          '.book-description',
+          '.description-text',
+          '.about-book',
+          '[class*="desc"]',
+          '.book-summary',
+          '.summary'
+        ];
+        for (const selector of descriptionSelectors) {
+          const descEl = doc.querySelector(selector);
+          if (descEl) {
+            description = descEl.textContent?.trim() || '';
+            if (description) break;
+          }
+        }
+
         return {
           title: titleElement?.textContent?.trim() || '',
           author: authorRow?.querySelector('a.book-vl-rows-item-subtitle, div.book-vl-rows-item-subtitle')?.textContent?.trim() || '',
@@ -309,7 +346,8 @@ description: "{{description}}"
           translator: translatorRow?.querySelector('a.book-vl-rows-item-subtitle, div.book-vl-rows-item-subtitle')?.textContent?.trim() || '',
           datepublished: datePublishedRow?.querySelector('a.book-vl-rows-item-subtitle, div.book-vl-rows-item-subtitle')?.textContent?.trim() || '',
           language: languageRow?.querySelector('a.book-vl-rows-item-subtitle, div.book-vl-rows-item-subtitle')?.textContent?.trim() || '',
-          url: fidiboUrl
+          url: fidiboUrl,
+          description: description
         };
       } else if (source === 'goodreads') {
         const jsonLd = this.extractJsonLd(html);
@@ -495,8 +533,23 @@ description: "{{description}}"
         const isbn: string = isbnElement?.textContent?.trim() || '';
         const canonicalLink = doc.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
         const canonicalUrl = canonicalLink?.getAttribute('href')?.trim() || url;
-        const descriptionElement = doc.querySelector('#bookDescriptionFeature .a-expander-content, #bookDescription .a-expander-content');
-        const description: string = descriptionElement?.textContent?.trim() || '';
+        
+        // Extract description with multiple fallback selectors
+        let description = '';
+        const descriptionSelectors = [
+          '#bookDescriptionFeature .a-expander-content',
+          '#bookDescription .a-expander-content',
+          '#productDescription .a-expander-content',
+          '[data-asin] #bookDescription',
+          '.book-description'
+        ];
+        for (const selector of descriptionSelectors) {
+          const descEl = doc.querySelector(selector);
+          if (descEl) {
+            description = descEl.textContent?.trim() || '';
+            if (description) break;
+          }
+        }
 
         return {
           title: title || '',

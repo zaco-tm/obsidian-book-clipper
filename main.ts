@@ -294,10 +294,31 @@ summary: "{{summary}}"
         let description = '';
         
         if (data.description) {
+          // Direct ISBN lookup returns description directly
           description = typeof data.description === 'string' ? data.description : data.description.value || '';
         } else if (data.docs && data.docs.length > 0) {
-          description = data.docs[0].first_sentence || data.docs[0].description || '';
+          // Search API - need to fetch full work details
+          const doc = data.docs[0];
+          description = doc.first_sentence || doc.description || '';
           if (Array.isArray(description)) description = description[0] || '';
+          
+          // If no description in search result, fetch full work details
+          if (!description && doc.key) {
+            const workUrl = `https://openlibrary.org${doc.key}.json`;
+            try {
+              const workResponse = await requestUrl({
+                url: workUrl,
+                method: 'GET',
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+              });
+              if (workResponse.status === 200 && workResponse.json) {
+                const workData = workResponse.json;
+                description = workData.description?.value || workData.description || '';
+              }
+            } catch (e) {
+              // Ignore work fetch errors
+            }
+          }
         }
         
         if (description) {
@@ -347,6 +368,8 @@ summary: "{{summary}}"
           }
         }
         new Notice('Google Books: No description found', 3000);
+      } else if (response.status === 429) {
+        new Notice('Google Books rate limited', 3000);
       } else {
         new Notice(`Google Books error: ${response.status}`, 3000);
       }

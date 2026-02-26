@@ -271,6 +271,8 @@ summary: "{{summary}}"
 
   // Fetch book summary from Open Library API (primary) then Google Books (fallback)
   async fetchSummary(title: string, author: string, isbn?: string): Promise<string> {
+    console.log('Fetching summary for:', title, author, isbn);
+    
     // Try Open Library API first (no rate limits)
     try {
       let searchUrl = '';
@@ -281,34 +283,39 @@ summary: "{{summary}}"
         searchUrl = `https://openlibrary.org/search.json?title=${encodeURIComponent(cleanTitle)}&author=${encodeURIComponent(author.split(',')[0].trim())}&limit=1`;
       }
 
+      console.log('Open Library URL:', searchUrl);
       const response = await requestUrl({
         url: searchUrl,
         method: 'GET',
         headers: { 'User-Agent': 'Mozilla/5.0' }
       });
 
+      console.log('Open Library status:', response.status);
+      
       if (response.status === 200 && response.json) {
         const data = response.json;
+        console.log('Open Library data:', JSON.stringify(data, null, 2).substring(0, 500));
         let description = '';
         
         if (data.description) {
-          // Direct ISBN lookup returns description directly
           description = typeof data.description === 'string' ? data.description : data.description.value || '';
         } else if (data.docs && data.docs.length > 0) {
-          // Search API returns docs array
           description = data.docs[0].first_sentence || data.docs[0].description || '';
           if (Array.isArray(description)) description = description[0] || '';
         }
         
+        console.log('Open Library description:', description);
+        
         if (description) {
           const cleanDesc = description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
           if (cleanDesc.length > 20) {
+            console.log('Returning Open Library summary');
             return cleanDesc.substring(0, 500).trim();
           }
         }
       }
     } catch (error) {
-      // Continue to Google Books fallback
+      console.log('Open Library error:', error);
     }
 
     // Fallback to Google Books API
@@ -323,6 +330,7 @@ summary: "{{summary}}"
       }
 
       const apiUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=1`;
+      console.log('Google Books URL:', apiUrl);
 
       const response = await requestUrl({
         url: apiUrl,
@@ -330,21 +338,26 @@ summary: "{{summary}}"
         headers: { 'User-Agent': 'Mozilla/5.0' }
       });
 
+      console.log('Google Books status:', response.status);
+      
       if (response.status === 200) {
         const data = response.json;
+        console.log('Google Books data:', JSON.stringify(data, null, 2).substring(0, 500));
         if (data.items && data.items.length > 0) {
           const volumeInfo = data.items[0].volumeInfo || {};
           const description = volumeInfo.description || volumeInfo.summary || volumeInfo.textSnippet || '';
           if (description) {
             const cleanDesc = description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+            console.log('Returning Google Books summary');
             return cleanDesc.substring(0, 500).trim();
           }
         }
       }
     } catch (error) {
-      // Return empty if both APIs fail
+      console.log('Google Books error:', error);
     }
 
+    console.log('No summary found');
     return '';
   }
 

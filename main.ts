@@ -275,44 +275,48 @@ summary: "{{summary}}"
   // Fetch book summary from Google Books API
   async fetchSummary(title: string, author: string, isbn?: string): Promise<string> {
     try {
-      // Build search query
+      // Build search query - prefer ISBN for exact match
       let query = '';
       if (isbn && isbn.length > 5) {
         query = `isbn:${isbn}`;
       } else {
-        // Use title and author
-        const cleanTitle = title.replace(/[:–—-].*$/, '').trim(); // Remove subtitle
-        const cleanAuthor = author.split(',')[0].trim(); // Get first author
-        query = `intitle:${encodeURIComponent(cleanTitle)}+inauthor:${encodeURIComponent(cleanAuthor)}`;
+        // Use title and author - simpler query format
+        const cleanTitle = title.replace(/[:–—-].*$/, '').trim();
+        const cleanAuthor = author.split(',')[0].trim();
+        query = `${cleanTitle} ${cleanAuthor}`;
       }
-      
-      const apiUrl = `https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=1`;
-      
+
+      const apiUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=1`;
+
       const response = await requestUrl({
         url: apiUrl,
         method: 'GET',
         headers: { 'User-Agent': 'Mozilla/5.0' }
       });
-      
-      if (response.status === 200 && response.json) {
+
+      if (response.status === 200) {
         const data = response.json;
         if (data.items && data.items.length > 0) {
-          const volumeInfo = data.items[0].volumeInfo;
+          const volumeInfo = data.items[0].volumeInfo || {};
           
-          // Get description, clean it up (remove HTML tags)
-          const description = volumeInfo.description || '';
+          // Try multiple description fields
+          const description = volumeInfo.description || volumeInfo.summary || volumeInfo.textSnippet || '';
           if (description) {
             // Strip HTML tags
-            const cleanDesc = description.replace(/<[^>]*>/g, '').trim();
-            // Get first 500 chars or first paragraph
-            const firstParagraph = cleanDesc.split('\n\n')[0] || cleanDesc.substring(0, 500);
-            return firstParagraph.substring(0, 500).trim();
+            const cleanDesc = description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+            // Return first 500 chars
+            return cleanDesc.substring(0, 500).trim();
           }
+        } else {
+          new Notice('No Google Books results found', 3000);
         }
+      } else {
+        new Notice(`Google Books API error: ${response.status}`, 3000);
       }
-      
+
       return '';
     } catch (error) {
+      new Notice(`Summary fetch error: ${(error as Error).message}`, 5000);
       return '';
     }
   }

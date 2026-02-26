@@ -269,15 +269,54 @@ summary: "{{summary}}"
     return `${year}-${month}-${day}`;
   }
 
-  // Fetch book summary from Google Books API
+  // Fetch book summary from Open Library API (primary) then Google Books (fallback)
   async fetchSummary(title: string, author: string, isbn?: string): Promise<string> {
+    // Try Open Library API first (no rate limits)
     try {
-      // Build search query - prefer ISBN for exact match
+      let searchUrl = '';
+      if (isbn && isbn.length > 5) {
+        searchUrl = `https://openlibrary.org/isbn/${isbn}.json`;
+      } else {
+        const cleanTitle = title.replace(/[:–—-].*$/, '').trim();
+        searchUrl = `https://openlibrary.org/search.json?title=${encodeURIComponent(cleanTitle)}&author=${encodeURIComponent(author.split(',')[0].trim())}&limit=1`;
+      }
+
+      const response = await requestUrl({
+        url: searchUrl,
+        method: 'GET',
+        headers: { 'User-Agent': 'Mozilla/5.0' }
+      });
+
+      if (response.status === 200 && response.json) {
+        const data = response.json;
+        let description = '';
+        
+        if (data.description) {
+          // Direct ISBN lookup returns description directly
+          description = typeof data.description === 'string' ? data.description : data.description.value || '';
+        } else if (data.docs && data.docs.length > 0) {
+          // Search API returns docs array
+          description = data.docs[0].first_sentence || data.docs[0].description || '';
+          if (Array.isArray(description)) description = description[0] || '';
+        }
+        
+        if (description) {
+          const cleanDesc = description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+          if (cleanDesc.length > 20) {
+            return cleanDesc.substring(0, 500).trim();
+          }
+        }
+      }
+    } catch (error) {
+      // Continue to Google Books fallback
+    }
+
+    // Fallback to Google Books API
+    try {
       let query = '';
       if (isbn && isbn.length > 5) {
         query = `isbn:${isbn}`;
       } else {
-        // Use title and author - simpler query format
         const cleanTitle = title.replace(/[:–—-].*$/, '').trim();
         const cleanAuthor = author.split(',')[0].trim();
         query = `${cleanTitle} ${cleanAuthor}`;
@@ -295,26 +334,18 @@ summary: "{{summary}}"
         const data = response.json;
         if (data.items && data.items.length > 0) {
           const volumeInfo = data.items[0].volumeInfo || {};
-          
-          // Try multiple description fields
           const description = volumeInfo.description || volumeInfo.summary || volumeInfo.textSnippet || '';
           if (description) {
-            // Strip HTML tags
             const cleanDesc = description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
             return cleanDesc.substring(0, 500).trim();
           }
         }
-      } else if (response.status === 429) {
-        new Notice('Google Books rate limit reached - summary unavailable', 5000);
       }
-
-      return '';
     } catch (error) {
-      if ((error as any).status === 429) {
-        new Notice('Google Books rate limit reached - summary unavailable', 5000);
-      }
-      return '';
+      // Return empty if both APIs fail
     }
+
+    return '';
   }
 
   // Fetch book data function (with requestUrl)

@@ -484,21 +484,36 @@ description: "{{description}}"
 
         return null;
       } else if (source === 'amazon') {
+        // Try to extract JSON-LD data first for more reliable data
+        const jsonLd = this.extractJsonLd(html);
+        let jsonLdTitle = '';
+        let jsonLdDescription = '';
+        
+        if (jsonLd) {
+          jsonLdTitle = jsonLd.name || '';
+          jsonLdDescription = jsonLd.description || '';
+        }
+        
         // Extract title with multiple fallback selectors
         let title = '';
         const titleSelectors = [
+          '#productTitle',
           'span#productTitle',
           'h1#title',
-          '#productTitle',
-          'span.a-size-large#productTitle',
+          '.product-title',
+          '.a-size-medium',
           'h1.a-size-large'
         ];
         for (const selector of titleSelectors) {
           const titleEl = doc.querySelector(selector);
           if (titleEl) {
-            title = titleEl.textContent?.trim().replace(/\n/g, ' ') || '';
+            title = titleEl.textContent?.trim().replace(/\s+/g, ' ') || '';
             if (title) break;
           }
+        }
+        // Fallback to JSON-LD title if no HTML title found
+        if (!title && jsonLdTitle) {
+          title = jsonLdTitle;
         }
 
         const bylineInfo = doc.querySelector('div#bylineInfo');
@@ -617,17 +632,22 @@ description: "{{description}}"
           '#bookDescriptionFeature .a-expander-content',
           '#bookDescription .a-expander-content',
           '#productDescription .a-expander-content',
-          '[data-asin] #bookDescription',
-          '.book-description',
           '#descriptionWrapper',
-          '#instantAccess'
+          '#instantAccess',
+          '.book-description',
+          '.a-expander .a-expander-content',
+          '[data-csa-c-content-id="book_description"]'
         ];
         for (const selector of descriptionSelectors) {
           const descEl = doc.querySelector(selector);
           if (descEl) {
-            description = descEl.textContent?.trim() || '';
+            description = descEl.textContent?.trim().replace(/\s+/g, ' ') || '';
             if (description) break;
           }
+        }
+        // Fallback to JSON-LD description if no HTML description found
+        if (!description && jsonLdDescription) {
+          description = jsonLdDescription;
         }
 
         return {

@@ -166,10 +166,11 @@ description: "{{description}}"
   // Detect source function (from original code)
   detectSource(url: string): string | null {
     // Check for Amazon first (most varied URL formats)
-    // Supports: /dp/, /gp/product/, /asin/, /exec/obidos/, amzn.to short links, all domains
+    // Supports: /dp/, /gp/product/, /asin/, /exec/obidos/, amzn.to, a.co short links, all domains
     const amazonPatterns = [
       /amazon\.(com|co\.[a-z]{2}|[a-z]{2})\/(gp\/product|exec\/obidos\/asin|dp|asin|o\/ASIN)\/([A-Z0-9]{10})/i,
       /amzn\.to\//i,
+      /a\.co\/[a-zA-Z0-9]+/i,
       /amazon\.(com|co\.[a-z]{2}|[a-z]{2})\/.*[&?]asin=([A-Z0-9]{10})/i
     ];
     for (const pattern of amazonPatterns) {

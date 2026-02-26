@@ -92,11 +92,9 @@ export default class AddBookPlugin extends Plugin {
       return;
     }
 
-    // Fetch summary from Google Books API if no description
-    if (!bookData.description || bookData.description.length < 50) {
-      new Notice('Fetching summary from Google Books...', 3000);
-      bookData.summary = await this.fetchSummary(bookData.title, bookData.author, bookData.isbn);
-    }
+    // Fetch summary from Google Books API
+    new Notice('Fetching summary from Google Books...', 3000);
+    bookData.summary = await this.fetchSummary(bookData.title, bookData.author, bookData.isbn);
 
     // Read template (use default if not specified)
     let templateContent: string = '';

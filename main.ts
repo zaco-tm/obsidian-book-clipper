@@ -484,22 +484,37 @@ description: "{{description}}"
 
         return null;
       } else if (source === 'amazon') {
-        const title: string = doc.querySelector('span#productTitle')?.textContent?.trim() || '';
-        
+        // Extract title with multiple fallback selectors
+        let title = '';
+        const titleSelectors = [
+          'span#productTitle',
+          'h1#title',
+          '#productTitle',
+          'span.a-size-large#productTitle',
+          'h1.a-size-large'
+        ];
+        for (const selector of titleSelectors) {
+          const titleEl = doc.querySelector(selector);
+          if (titleEl) {
+            title = titleEl.textContent?.trim().replace(/\n/g, ' ') || '';
+            if (title) break;
+          }
+        }
+
         const bylineInfo = doc.querySelector('div#bylineInfo');
         const authors: string[] = [];
         const translators: string[] = [];
-        
+
         if (bylineInfo) {
           const authorSpans = bylineInfo.querySelectorAll('span.author');
           authorSpans.forEach((span) => {
             const nameElement = span.querySelector('a.a-link-normal');
             const contributionElement = span.querySelector('span.contribution span.a-color-secondary');
-            
+
             if (nameElement) {
               const name = nameElement.textContent?.trim() || '';
               const contribution = contributionElement?.textContent?.trim() || '';
-              
+
               if (name) {
                 if (contribution.includes('Translator')) {
                   translators.push(name);
@@ -510,21 +525,38 @@ description: "{{description}}"
             }
           });
         }
-        
+
         // Fallback to old method if bylineInfo not found
         let author: string = authors.length > 0 ? authors.join(', ') : '';
         if (author === '') {
-          const authorElement = doc.querySelector('span.author a.a-link-normal');
+          const authorElement = doc.querySelector('span.author a.a-link-normal, #bylineInfo a.a-link-normal');
           author = authorElement?.textContent?.trim() || '';
         }
         const translator: string = translators.length > 0 ? translators.join(', ') : '';
-        const pagesElement = doc.querySelector('div.rpi-attribute-value span');
-        let pages: string = '';
-        if (pagesElement) {
-          const pagesText: string = pagesElement.textContent?.trim() || '';
-          const pageMatch = pagesText.match(/\d+/);
-          pages = pageMatch ? pageMatch[0] : '';
+        
+        // Extract pages with multiple fallback selectors
+        let pages = '';
+        const pagesElements = doc.querySelectorAll('#detailBullets_feature_div li span.a-size-base, .rpi-attribute-value span, #booksProductDetails_feature_div li span.a-size-base');
+        for (const el of Array.from(pagesElements)) {
+          const text = el.textContent?.trim() || '';
+          if (text.toLowerCase().includes('page') || text.toLowerCase().includes('print length')) {
+            const pageMatch = text.match(/\d+/);
+            if (pageMatch) {
+              pages = pageMatch[0];
+              break;
+            }
+          }
         }
+        // Fallback to data-attribute
+        if (!pages) {
+          const pagesEl = doc.querySelector('[data-attribute="number_of_pages"]');
+          if (pagesEl) {
+            const text = pagesEl.textContent?.trim() || '';
+            const pageMatch = text.match(/\d+/);
+            if (pageMatch) pages = pageMatch[0];
+          }
+        }
+        
         const coverElement = doc.querySelector('img#landingImage');
         let cover: string = "";
         if (coverElement) {
@@ -534,13 +566,47 @@ description: "{{description}}"
             cover = highResImage;
           }
         }
-        const publisherElement = doc.querySelector('#rpi-attribute-book_details-publisher .rpi-attribute-value span');
-        const publisher: string = publisherElement?.textContent?.trim() || '';
-        const datePublishedElement = doc.querySelector('#rpi-attribute-book_details-publication_date .rpi-attribute-value span');
-        const datepublished: string = datePublishedElement?.textContent?.trim() || '';
-        const languageElement = doc.querySelector('#rpi-attribute-language .rpi-attribute-value span');
+        
+        // Extract publisher with fallback selectors
+        let publisher = '';
+        const publisherElements = doc.querySelectorAll('#detailBullets_feature_div li, #booksProductDetails_feature_div li, .rpi-attribute-value span');
+        for (const el of Array.from(publisherElements)) {
+          const text = el.textContent?.trim() || '';
+          if (text.toLowerCase().includes('publisher') && !text.toLowerCase().includes('publication')) {
+            const pubMatch = text.split(/[:–—-]/).pop()?.trim() || '';
+            if (pubMatch && pubMatch.length > 1) {
+              publisher = pubMatch;
+              break;
+            }
+          }
+        }
+        if (!publisher) {
+          const pubEl = doc.querySelector('[data-attribute="publisher"]');
+          publisher = pubEl?.textContent?.trim() || '';
+        }
+        
+        // Extract date published with fallback selectors
+        let datepublished = '';
+        const dateElements = doc.querySelectorAll('#detailBullets_feature_div li, #booksProductDetails_feature_div li, .rpi-attribute-value span');
+        for (const el of Array.from(dateElements)) {
+          const text = el.textContent?.trim() || '';
+          if (text.toLowerCase().includes('publication date') || text.toLowerCase().includes('publish date')) {
+            const dateMatch = text.split(/[:–—-]/).pop()?.trim() || '';
+            if (dateMatch && dateMatch.length > 1) {
+              datepublished = dateMatch;
+              break;
+            }
+          }
+        }
+        if (!datepublished) {
+          const dateEl = doc.querySelector('[data-attribute="publication_date"]');
+          datepublished = dateEl?.textContent?.trim() || '';
+        }
+        
+        const languageElement = doc.querySelector('#rpi-attribute-language .rpi-attribute-value span, [data-attribute="language"]');
         const language: string = languageElement?.textContent?.trim() || '';
-        const isbnElement = doc.querySelector('#rpi-attribute-book_details-isbn13 .rpi-attribute-value span');
+        
+        const isbnElement = doc.querySelector('#rpi-attribute-book_details-isbn13 .rpi-attribute-value span, [data-attribute="isbn_13"]');
         const isbn: string = isbnElement?.textContent?.trim() || '';
         const canonicalLink = doc.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
         const canonicalUrl = canonicalLink?.getAttribute('href')?.trim() || url;
@@ -552,7 +618,9 @@ description: "{{description}}"
           '#bookDescription .a-expander-content',
           '#productDescription .a-expander-content',
           '[data-asin] #bookDescription',
-          '.book-description'
+          '.book-description',
+          '#descriptionWrapper',
+          '#instantAccess'
         ];
         for (const selector of descriptionSelectors) {
           const descEl = doc.querySelector(selector);

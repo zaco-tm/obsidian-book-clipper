@@ -645,7 +645,7 @@ description: "{{description}}"
         let description = '';
         const descriptionSelectors = [
           '#bookDescriptionFeature .a-expander-content',
-          '#bookDescription .a-expander-content', 
+          '#bookDescription .a-expander-content',
           '#productDescription .a-expander-content',
           '#descriptionWrapper',
           '#instantAccess',
@@ -665,6 +665,45 @@ description: "{{description}}"
         // Fallback to JSON-LD description if no HTML description found
         if (!description && jsonLdDescription) {
           description = jsonLdDescription;
+        }
+        // Last resort: try to extract from ASIN-based description URL
+        if (!description || description.length < 20) {
+          const asinMatch = url.match(/(?:dp|asin|gp\/product)\/([A-Z0-9]{10})/i);
+          if (asinMatch) {
+            const asin = asinMatch[1];
+            try {
+              // Try mobile Amazon which sometimes has simpler HTML
+              const mobileUrl = `https://www.amazon.com/dp/${asin}`;
+              const mobileResponse = await requestUrl({
+                url: mobileUrl,
+                method: 'GET',
+                headers: { 
+                  'User-Agent': 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36'
+                }
+              });
+              const mobileHtml: string = mobileResponse.text;
+              const mobileDoc: Document = new DOMParser().parseFromString(mobileHtml, 'text/html');
+              
+              const mobileSelectors = [
+                '#bookDescription_feature_div',
+                '#productDescription_feature_div',
+                '[data-asin] .a-expander-content',
+                '.a-size-base'
+              ];
+              for (const selector of mobileSelectors) {
+                const descEl = mobileDoc.querySelector(selector);
+                if (descEl) {
+                  const descText = descEl.textContent?.trim().replace(/\s+/g, ' ') || '';
+                  if (descText && descText.length > 20 && !descText.toLowerCase().includes('customer reviews')) {
+                    description = descText;
+                    break;
+                  }
+                }
+              }
+            } catch (e) {
+              // Ignore errors in fallback
+            }
+          }
         }
 
         return {

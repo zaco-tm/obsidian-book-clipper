@@ -271,7 +271,7 @@ summary: "{{summary}}"
 
   // Fetch book summary from Open Library API (primary) then Google Books (fallback)
   async fetchSummary(title: string, author: string, isbn?: string): Promise<string> {
-    console.log('Fetching summary for:', title, author, isbn);
+    new Notice(`Summary: Searching "${title.substring(0, 30)}..."`, 4000);
     
     // Try Open Library API first (no rate limits)
     try {
@@ -283,18 +283,14 @@ summary: "{{summary}}"
         searchUrl = `https://openlibrary.org/search.json?title=${encodeURIComponent(cleanTitle)}&author=${encodeURIComponent(author.split(',')[0].trim())}&limit=1`;
       }
 
-      console.log('Open Library URL:', searchUrl);
       const response = await requestUrl({
         url: searchUrl,
         method: 'GET',
         headers: { 'User-Agent': 'Mozilla/5.0' }
       });
 
-      console.log('Open Library status:', response.status);
-      
       if (response.status === 200 && response.json) {
         const data = response.json;
-        console.log('Open Library data:', JSON.stringify(data, null, 2).substring(0, 500));
         let description = '';
         
         if (data.description) {
@@ -304,21 +300,23 @@ summary: "{{summary}}"
           if (Array.isArray(description)) description = description[0] || '';
         }
         
-        console.log('Open Library description:', description);
-        
         if (description) {
           const cleanDesc = description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
           if (cleanDesc.length > 20) {
-            console.log('Returning Open Library summary');
+            new Notice('Summary found (Open Library)', 3000);
             return cleanDesc.substring(0, 500).trim();
           }
         }
+        new Notice('Open Library: No description found', 3000);
+      } else {
+        new Notice(`Open Library error: ${response.status}`, 3000);
       }
     } catch (error) {
-      console.log('Open Library error:', error);
+      new Notice(`Open Library: ${(error as Error).message}`, 3000);
     }
 
     // Fallback to Google Books API
+    new Notice('Trying Google Books...', 3000);
     try {
       let query = '';
       if (isbn && isbn.length > 5) {
@@ -330,7 +328,6 @@ summary: "{{summary}}"
       }
 
       const apiUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=1`;
-      console.log('Google Books URL:', apiUrl);
 
       const response = await requestUrl({
         url: apiUrl,
@@ -338,26 +335,25 @@ summary: "{{summary}}"
         headers: { 'User-Agent': 'Mozilla/5.0' }
       });
 
-      console.log('Google Books status:', response.status);
-      
       if (response.status === 200) {
         const data = response.json;
-        console.log('Google Books data:', JSON.stringify(data, null, 2).substring(0, 500));
         if (data.items && data.items.length > 0) {
           const volumeInfo = data.items[0].volumeInfo || {};
           const description = volumeInfo.description || volumeInfo.summary || volumeInfo.textSnippet || '';
           if (description) {
             const cleanDesc = description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-            console.log('Returning Google Books summary');
+            new Notice('Summary found (Google Books)', 3000);
             return cleanDesc.substring(0, 500).trim();
           }
         }
+        new Notice('Google Books: No description found', 3000);
+      } else {
+        new Notice(`Google Books error: ${response.status}`, 3000);
       }
     } catch (error) {
-      console.log('Google Books error:', error);
+      new Notice(`Google Books: ${(error as Error).message}`, 3000);
     }
 
-    console.log('No summary found');
     return '';
   }
 

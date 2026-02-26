@@ -525,6 +525,7 @@ summary: "{{summary}}"
           let publisher = '';
           let datepublished = '';
           let description = '';
+          let isbn = '';
           const nextData = this.extractNextData(html);
 
           if (nextData) {
@@ -561,6 +562,7 @@ summary: "{{summary}}"
             if (details) {
               publisher = details.publisher ? String(details.publisher).trim() : '';
               datepublished = details.publicationTime ? this.formatDateFromTimestamp(details.publicationTime) : '';
+              isbn = details.isbn13 || details.isbn || details.asin || '';
             }
 
             // Try to extract description from nextData
@@ -595,24 +597,28 @@ summary: "{{summary}}"
           // Extract description from JSON-LD or fallback to HTML element
           if (!description) {
             if (jsonLd.description) {
-              description = typeof jsonLd.description === 'string' 
-                ? jsonLd.description 
+              description = typeof jsonLd.description === 'string'
+                ? jsonLd.description
                 : '';
             }
           }
           // Fallback: try to extract from Goodreads description element
           if (!description) {
-            // Try multiple selectors for description
+            // Try multiple selectors for description (updated for current Goodreads layout)
             const descriptionSelectors = [
               '[data-testid="description"]',
               '.BookPageMetadataSection__description',
               'div[data-automation-id="bookDescription"]',
               'div#bookDescription',
-              'div.read-more-content',
-              'div.truncatedText',
+              '.read-more-content',
+              '.truncatedText',
               'div#descriptionContainer',
               'div.descriptionContainer',
-              'div.BookPageDescriptionSection'
+              '.BookPageDescriptionSection',
+              '.BookDescriptionSection',
+              '.Description',
+              '[class*="description"]',
+              '[class*="Description"]'
             ];
             for (const selector of descriptionSelectors) {
               const descriptionEl = doc.querySelector(selector);
@@ -620,6 +626,22 @@ summary: "{{summary}}"
                 description = descriptionEl.textContent?.trim() || '';
                 if (description) break;
               }
+            }
+          }
+
+          // Extract ISBN from HTML if not found in nextData
+          if (!isbn) {
+            const isbnText = doc.documentElement.textContent || '';
+            const isbn13Match = isbnText.match(/ISBN[-]*13[:\s]*([0-9X-]{10,})/i);
+            const isbn10Match = isbnText.match(/ISBN[-]*10[:\s]*([0-9X-]{10,})/i);
+            const genericIsbnMatch = isbnText.match(/ISBN[:\s]*([0-9X-]{10,})/i);
+            
+            if (isbn13Match && isbn13Match[1]) {
+              isbn = isbn13Match[1].replace(/-/g, '').trim();
+            } else if (isbn10Match && isbn10Match[1]) {
+              isbn = isbn10Match[1].replace(/-/g, '').trim();
+            } else if (genericIsbnMatch && genericIsbnMatch[1]) {
+              isbn = genericIsbnMatch[1].replace(/-/g, '').trim();
             }
           }
 
@@ -636,7 +658,7 @@ summary: "{{summary}}"
             publisher: publisher,
             translator: '',
             datepublished: datepublished,
-            isbn: jsonLd.isbn || '',
+            isbn: isbn || jsonLd.isbn || '',
             language: jsonLd.inLanguage || '',
             url: canonicalUrl,
             description: description

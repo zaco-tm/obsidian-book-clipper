@@ -319,6 +319,7 @@ description: "{{description}}"
 
           let publisher = '';
           let datepublished = '';
+          let description = '';
           const nextData = this.extractNextData(html);
 
           if (nextData) {
@@ -356,23 +357,63 @@ description: "{{description}}"
               publisher = details.publisher ? String(details.publisher).trim() : '';
               datepublished = details.publicationTime ? this.formatDateFromTimestamp(details.publicationTime) : '';
             }
+
+            // Try to extract description from nextData
+            const findDescription = (obj: any, visited: Set<any> = new Set()): string | null => {
+              if (!obj || typeof obj !== 'object' || visited.has(obj) ||
+                  obj instanceof Date || obj instanceof RegExp || typeof obj === 'function') {
+                return null;
+              }
+              visited.add(obj);
+
+              if (obj.description && typeof obj.description === 'string' && obj.description.length > 50) {
+                return obj.description;
+              }
+
+              const items = Array.isArray(obj) ? obj : Object.values(obj);
+              for (const item of items) {
+                const result = findDescription(item, visited);
+                if (result) return result;
+              }
+              return null;
+            };
+
+            const descFromNextData = findDescription(nextData?.props?.pageProps?.apolloState);
+            if (descFromNextData) {
+              description = descFromNextData;
+            }
           }
 
           const canonicalLink = doc.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
           const canonicalUrl = canonicalLink?.getAttribute('href')?.trim() || url;
 
           // Extract description from JSON-LD or fallback to HTML element
-          let description = '';
-          if (jsonLd.description) {
-            description = typeof jsonLd.description === 'string' 
-              ? jsonLd.description 
-              : '';
+          if (!description) {
+            if (jsonLd.description) {
+              description = typeof jsonLd.description === 'string' 
+                ? jsonLd.description 
+                : '';
+            }
           }
           // Fallback: try to extract from Goodreads description element
           if (!description) {
-            const descriptionDiv = doc.querySelector('div[data-automation-id="bookDescription"], div.ReadMoreContent, div.truncatedText');
-            if (descriptionDiv) {
-              description = descriptionDiv.textContent?.trim() || '';
+            // Try multiple selectors for description
+            const descriptionSelectors = [
+              'div[data-automation-id="bookDescription"]',
+              'div#bookDescription',
+              'div.read-more-content',
+              'div.truncatedText',
+              'div#descriptionContainer',
+              'div.descriptionContainer',
+              'div.BookPageDescriptionSection',
+              'div[data-testid="bookDescription"]'
+            ];
+            for (const selector of descriptionSelectors) {
+              const descriptionEl = doc.querySelector(selector);
+              if (descriptionEl) {
+                description = descriptionEl.textContent?.trim() || '';
+                if (description) break;
+              }
             }
           }
 
